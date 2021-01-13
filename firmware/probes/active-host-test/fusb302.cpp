@@ -78,20 +78,49 @@ void FUSB302::set_toggle(toggle_modes mode, bool en) {
 }
 
 void FUSB302::set_pullup(bool cc1, bool cc2) {
-    // TODO disable device pull down as well
     uint8_t switches_0;
     _read_reg(REG_SWITCHES_0, 1, &switches_0);
     // Clear pullup bits
     switches_0 &= 0x3F;
 
+    // Set pullup bit and clear corresponding pulldown bit
     if (cc1) {
+        switches_0 &= ~(1 << 0);
         switches_0 |= 1 << 6;
     }
     if (cc2) {
+        switches_0 &= ~(1 << 1);
         switches_0 |= 1 << 7;
     }
 
     _write_reg(REG_SWITCHES_0, 1, &switches_0);
+}
+
+void FUSB302::set_pulldown(bool cc1, bool cc2) {
+    uint8_t switches_0;
+    _read_reg(REG_SWITCHES_0, 1, &switches_0);
+    // Clear pulldown bits
+    switches_0 &= 0xFC;
+
+    // Set pulldown bit and clear corresponding pullup bit
+    if (cc1) {
+        switches_0 &= ~(1 << 6);
+        switches_0 |= 1 << 0;
+    }
+    if (cc2) {
+        switches_0 &= ~(1 << 7);
+        switches_0 |= 1 << 1;
+    }
+
+    _write_reg(REG_SWITCHES_0, 1, &switches_0);
+}
+
+void FUSB302::set_host_current(host_current_levels level) {
+    uint8_t control;
+    _read_reg(REG_CONTROL_0, 1, &control);
+    control &= 0xF3;
+    control |= level << 2;
+    _write_reg(REG_CONTROL_0, 1, &control);
 }
 
 void FUSB302::set_vconn_pwr(vconn_pwr en) {

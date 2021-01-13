@@ -120,6 +120,7 @@ class FUSB302 {
 
         /// @brief Applies the host-side pullup current to the given CCx pins
         void set_pullup(bool cc1, bool cc2);
+        /// @brief Applies the device pull down functionality on the given CCx pins
         void set_pulldown(bool cc1, bool cc2);
 
         void set_host_current(host_current_levels level);
