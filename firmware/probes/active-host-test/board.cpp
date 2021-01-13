@@ -71,7 +71,7 @@ uint8_t i2c_read_register(uint8_t reg, uint8_t len, uint8_t* const data) {
 
 uint8_t i2c_write_register(uint8_t reg, uint8_t len, const uint8_t* const data) {
     // TODO There *must* be a better way
-    uint8_t wr[4];
+    uint8_t wr[len + 1];
     wr[0] = reg;
     memcpy(static_cast<void*>(&wr[1]), static_cast<const void* const>(data), static_cast<size_t>(len));
 

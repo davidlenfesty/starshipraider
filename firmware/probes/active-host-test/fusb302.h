@@ -40,11 +40,40 @@ enum toggle_modes : uint8_t {
     MODE_SRC,
 };
 
+// TODO remove
 enum power_zones : uint8_t {
     PWR_BANDGAP_WAKE    = 0b0001,
     PWR_RX_CURRENT      = 0b0010,
     PWR_MEASURE         = 0b0100,
     PWR_OSC             = 0b1000,
+};
+
+enum vconn_pwr {
+    VCONN_PWR_NONE,
+    VCONN_PWR_CC1,
+    VCONN_PWR_CC2,
+};
+
+enum measure_pins {
+    MEASURE_VBUS,
+    MEASURE_CC1,
+    MEASURE_CC2,
+};
+
+enum host_current_levels {
+    HOST_CURRENT_NONE = 0b00,
+    HOST_CURRENT_DEFAULT_500mA,
+    HOST_CURRENT_MEDIUM_1A5,
+    HOST_CURRENT_HIGH_3A,
+};
+
+enum toggle_states {
+    TOGGLE_RUNNING          = 0b000,
+    TOGGLE_SRC_CC1          = 0b001,
+    TOGGLE_SRC_CC2          = 0b010,
+    TOGGLE_SNK_CC1          = 0b101,
+    TOGGLE_SNK_CC2          = 0b110,
+    TOGGLE_AUDIO_ACCESSORY  = 0b111,
 };
 
 // ---- Useful types ---- //
@@ -72,9 +101,9 @@ class FUSB302 {
         void reset_pd();
 
         /// @brief Enables the specified power zones.
-        void power_enable(power_zones zones);
+        void power_enable(uint8_t zones);
         /// @brief Disables the specified power zones.
-        void power_disable(power_zones zones);
+        void power_disable(uint8_t zones);
 
         /// @brief Writes the given values to the mask registers to enable/disable certain interrupts.
         ///
@@ -83,16 +112,32 @@ class FUSB302 {
 
         // ---- Type C Control Functionality ---- //
 
+        /// @brief Sets datasheet-recommended values, call just prior to set_toggle().
+        void recommended_toggle_init();
+
         /// @brief Enable/disable automatic DRP, SNK, SRC functionality
-        void enable_toggle(bool en);
+        void set_toggle(toggle_modes mode, bool en);
+
+        /// @brief Applies the host-side pullup current to the given CCx pins
+        void set_pullup(bool cc1, bool cc2);
+        void set_pulldown(bool cc1, bool cc2);
+
+        void set_host_current(host_current_levels level);
+
+        /// @brief Applies VCONN to the specified CCx pin
+        void set_vconn_pwr(vconn_pwr en);
+
+        /// @brief Measures the values on the given pin
+        float measure_pin(measure_pins pin);
+
+        /// @brief Obtains the current toggle state from status registers.
+        toggle_states get_toggle_state();
 
         // ---- USB PD Transciever Control ---- //
 
     private:
         i2c_rd_fn_t _read_reg;
         i2c_wr_fn_t _write_reg;
-
-
 
 };
 
