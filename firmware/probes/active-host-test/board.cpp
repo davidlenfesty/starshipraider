@@ -62,23 +62,12 @@ constexpr uint8_t fusb_addr = 0x44;
 // TODO I don't think this works...
 // Need to do repeated START, etc
 uint8_t i2c_read_register(uint8_t reg, uint8_t len, uint8_t* const data) {
-    // TODO what timeout?
-    // Write register number
-    HAL_I2C_Master_Transmit(&i2c_fusb, fusb_addr, &reg, 1, 1000);
-    // Read out data
-    HAL_I2C_Master_Receive(&i2c_fusb, fusb_addr, data, len, 1000);
-
+    HAL_I2C_Mem_Read(&i2c_fusb, fusb_addr, reg, I2C_MEMADD_SIZE_8BIT, data, len, 1000);
     return len;
 }
 
 uint8_t i2c_write_register(uint8_t reg, uint8_t len, const uint8_t* const data) {
-    // TODO There *must* be a better way
-    uint8_t wr[len + 1];
-    wr[0] = reg;
-    memcpy(static_cast<void*>(&wr[1]), static_cast<const void* const>(data), static_cast<size_t>(len));
-
-    HAL_I2C_Master_Transmit(&i2c_fusb, fusb_addr, wr, len, 1000);
-
+    HAL_I2C_Mem_Write(&i2c_fusb, fusb_addr, reg, I2C_MEMADD_SIZE_8BIT, data, len, 1000);
     return len;
 }
 
