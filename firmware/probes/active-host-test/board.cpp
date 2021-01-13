@@ -59,6 +59,8 @@ void i2c_init() {
 
 constexpr uint8_t fusb_addr = 0x44;
 
+// TODO I don't think this works...
+// Need to do repeated START, etc
 uint8_t i2c_read_register(uint8_t reg, uint8_t len, uint8_t* const data) {
     // TODO what timeout?
     // Write register number

@@ -76,6 +76,55 @@ enum toggle_states {
     TOGGLE_AUDIO_ACCESSORY  = 0b111,
 };
 
+enum tx_fifo_tokens {
+    TX_TOK_TXON     = 0xA1,
+    TX_TOK_SOP_1    = 0x12,
+    TX_TOK_SOP_2    = 0x13,
+    TX_TOK_SOP_3    = 0x1B,
+    TX_TOK_RESET_1  = 0x15,
+    TX_TOK_RESET_2  = 0x16,
+    TX_TOK_PACKSYM  = 0x80,
+    TX_TOK_JAM_CRC  = 0xFF,
+    TX_TOK_EOP      = 0x14,
+    TX_TOK_TXOFF    = 0xFE,
+};
+
+enum rx_fifo_tokens {
+    RX_TOK_SOP      = 0xE0,
+    RX_TOK_SOP1     = 0xC0,
+    RX_TOK_SOP2     = 0xA0,
+    RX_TOK_SOP1DB   = 0x80,
+    RX_TOK_SOP2DB   = 0x60,
+};
+
+// SOP*
+enum sop_types {
+    SOP_1, // SOP
+    SOP_2, // SOP'
+    SOP_3, // SOP''
+    SOP_2_DBG, // SOP' Debug
+    SOP_3_DBG, // SOP'' Debug
+};
+
+enum error {
+    ERR_OK = 0, // No error
+    ERR_I2C, // I2C hardware error
+    ERR_BUF_OVERFLOW, // Invalid buffer length
+    ERR_INVALID_INPUT, // A given parameter was invalid.
+    ERR_PROTOCOL, // USB-C protocol error of some sort (what a great error type)
+};
+
+// Used for power and data roles
+enum role_types {
+    ROLE_SRC,
+    ROLE_SNK,
+};
+
+enum spec_revisions {
+    REV_1 = 0b00,
+    REV_2 = 0b01,
+};
+
 // ---- Useful types ---- //
 typedef uint8_t (*i2c_rd_fn_t)(uint8_t reg_id, uint8_t len, uint8_t* const rd_buf);
 typedef uint8_t (*i2c_wr_fn_t)(uint8_t reg_id, uint8_t len, const uint8_t* const wr_buf);
@@ -104,6 +153,9 @@ class FUSB302 {
         void power_enable(uint8_t zones);
         /// @brief Disables the specified power zones.
         void power_disable(uint8_t zones);
+
+        /// @brief enables/disables all interrupts
+        error enable_interrupts(bool en);
 
         /// @brief Writes the given values to the mask registers to enable/disable certain interrupts.
         ///
@@ -135,6 +187,24 @@ class FUSB302 {
         toggle_states get_toggle_state();
 
         // ---- USB PD Transciever Control ---- //
+
+        // Set role types and data for building automatic CRC
+        error set_auto_crc(bool en, role_types power_role, role_types data_role, spec_revisions spec);
+
+        /// @brief flushes the specified FIFOs
+        error pd_fifo_flush(bool tx, bool rx);
+
+        /// @brief Enable SOP' and/or SOP'' packets
+        error enable_sop_prime(bool sop_2, bool sop_3, bool sop_2_dbg, bool sop_3_dbg);
+
+        /// @brief Sends a USB PD message.
+        ///
+        /// @note Deals with framing of the message itself, header should be included in the data,
+        ///       and there is no attention paid to the data in the header.
+        error pd_send_message(sop_types sop, uint8_t* data, uint8_t data_len);
+
+        /// @brief Reads USB PD message from FIFO.
+        error pd_read_message(uint8_t* read_buf, uint8_t read_buf_len, sop_types* sop);
 
     private:
         i2c_rd_fn_t _read_reg;
