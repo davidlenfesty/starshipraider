@@ -71,6 +71,21 @@ void FUSB302::write_masks(uint8_t mask, uint8_t mask_a, uint8_t mask_b) {
     _write_reg(REG_MASK_A, 2, _mask);
 }
 
+error FUSB302::get_interrupt(uint8_t* const flags) {
+    _read_reg(REG_INTERRUPT, 1, flags);
+    return ERR_OK;
+}
+
+error FUSB302::get_interrupt_a(uint8_t* const flags) {
+    _read_reg(REG_INTERRUPT_A, 1, flags);
+    return ERR_OK;
+}
+
+error FUSB302::get_interrupt_b(uint8_t* const flags) {
+    _read_reg(REG_INTERRUPT_B, 1, flags);
+    return ERR_OK;
+}
+
 void FUSB302::recommended_toggle_init() {
     write_masks(0xFE, 0xBF, 0x01); // Disables all but I_TOGDONE and I_BC_LVL
     // Datasheet is conflicting here, the table specs 0x07, but the text specs 0x01.

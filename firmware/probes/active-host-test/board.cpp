@@ -66,7 +66,7 @@ uint8_t i2c_read_register(uint8_t reg, uint8_t len, uint8_t* const data) {
     return len;
 }
 
-uint8_t i2c_write_register(uint8_t reg, uint8_t len, const uint8_t* const data) {
+uint8_t i2c_write_register(uint8_t reg, uint8_t len, uint8_t* const data) {
     HAL_I2C_Mem_Write(&i2c_fusb, fusb_addr, reg, I2C_MEMADD_SIZE_8BIT, data, len, 1000);
     return len;
 }

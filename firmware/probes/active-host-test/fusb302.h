@@ -125,9 +125,35 @@ enum spec_revisions {
     REV_2 = 0b01,
 };
 
+enum interrupt_a_flags {
+    I_OCP_TEMP  = 0x80,
+    I_TOGDONE   = 0x40,
+    I_SOFTFAIL  = 0x20,
+    I_RETRYFAIL = 0x10,
+    I_HARDSENT  = 0x08,
+    I_TXSENT    = 0x04,
+    I_SOFTRST   = 0x02,
+    I_HARDRST   = 0x01,
+};
+
+enum interrupt_b_flags {
+    I_GCRCSENT  = 0x01,
+};
+
+enum interrupt_flags {
+    I_VBUSOK    = 0x80,
+    I_ACTIVITY  = 0x40,
+    I_COMP_CHNG = 0x20,
+    I_CRC_CHK   = 0x10,
+    I_ALERT     = 0x08,
+    I_WAKE      = 0x04,
+    I_COLLISION = 0x02,
+    I_BC_LVL    = 0x01,
+};
+
 // ---- Useful types ---- //
 typedef uint8_t (*i2c_rd_fn_t)(uint8_t reg_id, uint8_t len, uint8_t* const rd_buf);
-typedef uint8_t (*i2c_wr_fn_t)(uint8_t reg_id, uint8_t len, const uint8_t* const wr_buf);
+typedef uint8_t (*i2c_wr_fn_t)(uint8_t reg_id, uint8_t len, uint8_t* const wr_buf);
 
 // TODO expose as external library, this is useful standalone, and should be a seperate repo
 /// @brief Simple driver for an FUSB302 USB Type-C driver IC.
@@ -161,6 +187,16 @@ class FUSB302 {
         ///
         /// @note Names of parameters correspond to the equivalent register.
         void write_masks(uint8_t mask, uint8_t mask_a, uint8_t mask_b);
+
+        /// @brief Gets values from Interrupt register.
+        /// @param[out] flags   Pointer to value to write flags to.
+        error get_interrupt(uint8_t* const flags);
+        /// @brief Gets values from Interrupta register.
+        /// @param[out] flags   Pointer to value to write flags to.
+        error get_interrupt_a(uint8_t* const flags);
+        /// @brief Gets values from Interruptb register.
+        /// @param[out] flags   Pointer to value to write flags to.
+        error get_interrupt_b(uint8_t* const flags);
 
         // ---- Type C Control Functionality ---- //
 
