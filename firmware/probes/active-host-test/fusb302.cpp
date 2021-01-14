@@ -256,6 +256,16 @@ error FUSB302::enable_sop_prime(bool sop_2, bool sop_3, bool sop_2_dbg, bool sop
     return ERR_OK;
 }
 
+error FUSB302::enable_tx_driver(bool cc1, bool cc2) {
+    uint8_t reg;
+    _read_reg(REG_SWITCHES_1, 1, &reg);
+    reg &= ~(0xFC);
+    reg |= (cc1 << 0) | (cc2 << 1);
+    _write_reg(REG_CONTROL_1, 1, &reg);
+
+    return ERR_OK;
+}
+
 error FUSB302::pd_send_message(sop_types sop, uint8_t* data, uint8_t data_len) {
 
     uint8_t fifo_buf[30 + 9]; // Max message size is 30 bytes + FIFO tokens

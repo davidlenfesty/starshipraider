@@ -25,11 +25,12 @@ int main() {
     probe_vbus_nen.set();
 
     // Hardware pullups on I2C
-    Drivers::Pin fusb_i2c_scl(GPIOB, 10, GPIO_MODE_AF_OD, GPIO_NOPULL);
-    Drivers::Pin fusb_i2c_sda(GPIOB, 11, GPIO_MODE_AF_OD, GPIO_NOPULL);
     Drivers::Pin fusb_i2c_int(GPIOB, 12, GPIO_MODE_INPUT, GPIO_NOPULL);
 
     FUSB302::FUSB302 fusb(Board::i2c_read_register, Board::i2c_write_register);
+    fusb.recommended_toggle_init();
+    fusb.set_toggle(FUSB302::toggle_modes::MODE_SRC, true);
+    fusb.set_auto_crc(true, FUSB302::ROLE_SRC, FUSB302::ROLE_SRC, FUSB302::REV_2);
 
     // TODO callback for managing I2C interrupts
     // TODO FUSB302 driver/init
@@ -40,6 +41,26 @@ int main() {
             GPIOA->ODR &= ~0x01;
         } else {
             GPIOA->ODR |= 0x01;
+        }
+
+        // Let's say this was checking an interrupt-set flag, say we finished the TOGGLE stuff
+        if (1) {
+            uint8_t imaginary_msg_buffer[8];
+            FUSB302::sop_types sop_type;
+            // Find correct pin
+            FUSB302::toggle_states state = fusb.get_toggle_state();
+            fusb.reset_pd();
+
+            if (state == FUSB302::TOGGLE_SRC_CC1) {
+                fusb.enable_tx_driver(true, false);
+            } else {
+                fusb.enable_tx_driver(false, true);
+            }
+
+            // "Check for VDM"
+            fusb.pd_send_message(FUSB302::SOP_2, imaginary_msg_buffer, 4);
+            // VDM response!
+            fusb.pd_read_message(imaginary_msg_buffer, 8, &sop_type);
         }
     }
 }

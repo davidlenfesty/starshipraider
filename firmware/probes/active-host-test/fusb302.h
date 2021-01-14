@@ -233,6 +233,9 @@ class FUSB302 {
         /// @brief Enable SOP' and/or SOP'' packets
         error enable_sop_prime(bool sop_2, bool sop_3, bool sop_2_dbg, bool sop_3_dbg);
 
+        /// @brief Enable the USB PD TX driver on the given pins
+        error enable_tx_driver(bool cc1, bool cc2);
+
         /// @brief Sends a USB PD message.
         ///
         /// @note Deals with framing of the message itself, header should be included in the data,

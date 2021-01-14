@@ -13,6 +13,7 @@ add_executable(firmware
     channel.cpp
     fusb302.cpp
     pin.cpp
+    usb_pd.cpp
     ${ST_HAL_SRCS}
     ${NEWLIB_STUB_SRCS}
     ../../STM32CubeF1/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/system_stm32f1xx.c
