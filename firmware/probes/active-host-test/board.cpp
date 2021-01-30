@@ -1,4 +1,5 @@
 #include "board.h"
+#include "pin.h"
 
 #include <stm32f1xx.h>
 #include <stm32f1xx_hal.h>
@@ -55,6 +56,39 @@ void i2c_init() {
     i2c_fusb.Init.NoStretchMode      = I2C_NOSTRETCH_DISABLED;
 
     HAL_I2C_Init(&i2c_fusb);
+}
+
+void spi_init() {
+    __HAL_RCC_SPI1_CLK_ENABLE();
+    __HAL_RCC_SPI1_FORCE_RESET();
+    __HAL_RCC_SPI1_RELEASE_RESET();
+
+    // Initialize pins. These objects get destroyed but I don't care.
+    Drivers::Pin spi_nss(GPIOA, GPIO_PIN_4, GPIO_MODE_AF_INPUT, GPIO_PULLUP);
+    Drivers::Pin spi_clk(GPIOA, GPIO_PIN_5, GPIO_MODE_AF_INPUT, GPIO_NOPULL);
+    Drivers::Pin spi_cipo(GPIOA, GPIO_PIN_6, GPIO_MODE_AF_PP, GPIO_NOPULL);
+    Drivers::Pin spi_copi(GPIOA, GPIO_PIN_7, GPIO_MODE_AF_INPUT, GPIO_NOPULL);
+
+    // Configure EXTI to detect CS flips on GPIOA4
+    EXTI->IMR = EXTI_IMR_IM4;       // Enable interrupts
+    EXTI->FTSR = EXTI_FTSR_FT4;     // Set falling trigger
+
+    // 8-bit mode, 0 polarity/0 phase, slave, no CRC and disabled.
+    SPI1->CR1 = 0;
+    // Only enable RX interrupt
+    SPI1->CR2 = SPI_CR2_RXNEIE;
+    // Start SPI
+    SPI1->CR1 |= SPI_CR1_SPE;
+
+    // Preload data registers with 0's.
+    // Must be set before receiving.
+    SPI1->DR = 0x00;
+
+    // Enable interrupts
+    NVIC_SetPriority(SPI1_IRQn, 0);
+    NVIC_SetPriority(EXTI0_IRQn, 0);
+    NVIC_EnableIRQ(SPI1_IRQn);
+    NVIC_EnableIRQ(EXTI4_IRQn);
 }
 
 constexpr uint8_t fusb_addr = 0x44;

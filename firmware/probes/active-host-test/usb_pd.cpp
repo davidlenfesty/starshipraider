@@ -31,7 +31,8 @@ MessageHeader::MessageHeader(uint16_t header) {
     this->power_role_or_cable_plug  = static_cast<bool>(header & 0x0100);
     this->revision                  = static_cast<spec_revisions>((header >> 6) & 0x03);
     this->data_role_or_reserved     = static_cast<bool>(header & 0x0020);
-    this->message_type              = static_cast<message_types>((uint8_t) header & 0x001F);
+    // TODO not sure how to best do this, I think this is a hack as it stands
+    this->message_type.control      = static_cast<control_message_types>((uint8_t) header & 0x001F);
 }
 
 uint16_t MessageHeader::serialize() {

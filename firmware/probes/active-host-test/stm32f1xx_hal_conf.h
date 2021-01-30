@@ -61,7 +61,8 @@ extern "C" {
 #define HAL_RTC_MODULE_ENABLED
 #define HAL_SD_MODULE_ENABLED
 #define HAL_SMARTCARD_MODULE_ENABLED
-#define HAL_SPI_MODULE_ENABLED
+// I don't want this getting in the way of my code.
+//#define HAL_SPI_MODULE_ENABLED
 #define HAL_SRAM_MODULE_ENABLED
 #define HAL_TIM_MODULE_ENABLED
 #define HAL_UART_MODULE_ENABLED

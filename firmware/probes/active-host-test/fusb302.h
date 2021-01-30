@@ -1,7 +1,7 @@
 #ifndef FUSB302_H
 #define FUSB302_H
 
-#include <functional>
+#include <stdint.h>
 
 namespace FUSB302 {
 

@@ -13,6 +13,9 @@ void clock_init();
 /// @brief Initializes all I2C peripherals
 void i2c_init();
 
+/// @brief Configures SPI1 as a slave with interrupts enabled for register interface.
+void spi_init();
+
 // ---- Chip-specific I2C functions ---- //
 // I'm not sure if this is a great API.
 // Requires another function per I2C chip.

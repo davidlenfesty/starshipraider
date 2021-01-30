@@ -20,4 +20,8 @@ void Pin::clear() {
     HAL_GPIO_WritePin(_port, _pin, GPIO_PIN_RESET);
 }
 
+void Pin::toggle() {
+    HAL_GPIO_TogglePin(_port, _pin);
+}
+
 } // namespace Drivers

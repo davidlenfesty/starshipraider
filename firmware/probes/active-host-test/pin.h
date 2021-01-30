@@ -12,6 +12,7 @@ class Pin {
 
         void set();
         void clear();
+        void toggle();
 
         // Temporary to avoid HAL for changing mode
         GPIO_TypeDef* _port;
