@@ -188,6 +188,7 @@ class FUSB302 {
         /// @note Names of parameters correspond to the equivalent register.
         void write_masks(uint8_t mask, uint8_t mask_a, uint8_t mask_b);
 
+        // TODO needs to check for NULL pointers and not write out
         /// @brief Gets values from Interrupt register.
         /// @param[out] flags   Pointer to value to write flags to.
         error get_interrupt(uint8_t* const flags);

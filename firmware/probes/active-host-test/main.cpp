@@ -2,9 +2,12 @@
 #include "fusb302.h"
 #include "board.h"
 #include "fifo.hpp"
+#include "registers.hpp"
 
 #include <stm32f1xx.h>
 #include <stm32f1xx_hal.h>
+
+#include <tuple>
 
 // TODO libraries and such should be built as fallible!
 // currently they assume everything is perfect which is not always the case.
@@ -19,12 +22,16 @@ void blink_led(Drivers::Pin* led) {
     }
 }
 
+// TODO maybe make this not global
+RegisterInterface::SpiRegisterInterface<1, 8> reg;
+Fifo<std::tuple<uint8_t, uint8_t>, 8> write_fifo;
+bool i2c_interrupt_flag;
+
 // IRQ Handlers
 extern "C" {
 
 bool transfer_start = false;
 bool write = false;
-Fifo<uint8_t, 8> write_fifo;
 uint8_t address;
 
 void SPI1_IRQHandler(void) {
@@ -43,6 +50,8 @@ void SPI1_IRQHandler(void) {
                 address = data & 0x7F;
             } else {
                 // Read from address
+                // TODO do I want a read FIFO as well?
+                SPI1->DR = reg.handle_read(address);
             }
 
         } else {
@@ -53,7 +62,7 @@ void SPI1_IRQHandler(void) {
                 // This is the data byte to write into the register
                 // ignoring the error code because there isn't anything I can do,
                 // and I'm assuming I won't get 8 bytes behind.
-                write_fifo.push(data);
+                write_fifo.push(std::tuple<uint8_t, uint8_t>(address, data));
             }
 
             // Clear write flag
@@ -72,8 +81,19 @@ void EXTI4_IRQHandler(void) {
     // of CS, i.e. when the transfer starts.
     transfer_start = true;
 
-    // Clear pending interrupts
-    EXTI->PR = 0;
+    // Clear pending interrupt
+    EXTI->PR &= ~(1 << 4);
+}
+
+// Handler for I2C interrupts
+void EXTI15_10_IRQHandler(void) {
+    // TODO maybe make this more abstracted
+    if (!(GPIOB->IDR & (1 << 12))) {
+        i2c_interrupt_flag = true;
+
+        // Clear EXTI channel 12 *specifically*
+        EXTI->PR &= ~(1 << 12);
+    }
 }
 
 }
@@ -90,28 +110,46 @@ int main() {
 
     // Do any setup for SPI register interface
 
-    // TODO many channels of this
-    // Configure 4 channels of FUSB302 as host-only devices with manual intervention
-    // I need a "probe" class w/ all the GPIO interfaces
-    Drivers::Pin probe_pwr_en(GPIOB, GPIO_PIN_5, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL);
-    Drivers::Pin probe_vbus_nen(GPIOB, GPIO_PIN_6, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL);
-    // TODO safe initialization
-    probe_pwr_en.clear();
-    probe_vbus_nen.set();
-
     // Hardware pullups on I2C
     Drivers::Pin fusb_i2c_int(GPIOB, GPIO_PIN_12, GPIO_MODE_INPUT, GPIO_NOPULL);
+    // TODO pull into Pin object
+    // Configure as interrupt source, falling edge
+    EXTI->IMR |= EXTI_IMR_IM12;
+    EXTI->FTSR |= EXTI_FTSR_FT12;
+    EXTI->RTSR &= ~EXTI_RTSR_RT12;
 
     FUSB302::FUSB302 fusb(Board::i2c_read_register, Board::i2c_write_register);
     fusb.recommended_toggle_init();
     fusb.set_toggle(FUSB302::toggle_modes::MODE_SRC, true);
     fusb.set_auto_crc(true, FUSB302::ROLE_SRC, FUSB302::ROLE_SRC, FUSB302::REV_2);
 
-    // TODO callback for managing I2C interrupts
-    // TODO FUSB302 driver/init
-
     while (1) {
         blink_led(&led1);
+
+        // Handle SPI writes
+        // Fine to just chug through everything, should be pretty quick to deal with.
+        while (!write_fifo.is_empty()) {
+            std::tuple<uint8_t, uint8_t> write;
+            if (write_fifo.pop(&write)) {
+                // ew
+                reg.handle_write(std::get<0>(write), std::get<1>(write));
+            }
+        }
+
+        if (i2c_interrupt_flag) {
+            uint8_t flags;
+            // Make sure BC_LVL is cleared via reading
+            FUSB302::error rc = fusb.get_interrupt(&flags);
+            rc = fusb.get_interrupt_a(&flags);
+
+            // I_TOGDONE, we have a new device attached
+            if (flags & 0x40) {
+                // I'm not sure what to do with this information
+            }
+
+            i2c_interrupt_flag = false;
+        }
+
 
         // Let's say this was checking an interrupt-set flag, say we finished the TOGGLE stuff
         if (1) {

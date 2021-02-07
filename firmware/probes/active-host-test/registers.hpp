@@ -49,17 +49,55 @@ If the callbacks are supplied, then they get passed the channel number and a poi
 */
 
 
+// TODO need to deal with data races. Or not?
 namespace RegisterInterface {
 
 typedef void (*cb_t)(uint8_t channel, uint8_t* data);
 
-// TODO is to finish everything here
 template<int C, int R>
 class SpiRegisterInterface {
     public:
+        SpiRegisterInterface() :
+            data(), rd_callbacks(), wr_callbacks() { }
+
+        void register_rd_callback(unsigned int reg, cb_t callback) {
+            // TODO bounds checking
+            rd_callbacks[reg] = callback;
+        };
+        void register_wr_callback(unsigned int reg, cb_t callback) {
+            // TODO bounds checking
+            wr_callbacks[reg] = callback;
+        }
+
+        uint8_t handle_read(uint8_t addr) {
+            // TODO decode channel + bounds checking
+            uint8_t channel = (addr & 0x70) >> 4;
+            addr = addr & 0x0F;
+
+            
+            if (rd_callbacks[addr] != nullptr) {
+                rd_callbacks[addr](channel, &data[channel][addr]);
+            }
+
+            return data[channel][addr];
+        }
+
+        void handle_write(uint8_t addr, uint8_t data) {
+            uint8_t channel = (addr & 0x70) >> 4;
+            addr = addr & 0x0F;
+
+            // TODO maybe rethink ordering of things?
+            this->data[channel][addr] = data;
+
+            if (wr_callbacks[addr] != nullptr) {
+                wr_callbacks[addr](channel, &this->data[channel][addr]);
+            }
+        }
+
+    private:
         uint8_t data[C][R];
-        cb_t rd_callbacks[C][R];
-        cb_t wr_callbacks[C][C];
+        cb_t rd_callbacks[R];
+        cb_t wr_callbacks[R];
 
 };
 

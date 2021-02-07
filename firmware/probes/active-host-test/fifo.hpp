@@ -52,6 +52,10 @@ class Fifo {
             return false;
         }
 
+        bool is_empty() {
+            return (_rd == _wr) && !_full;
+        }
+
     private:
         uint32_t _wr;
         uint32_t _rd;

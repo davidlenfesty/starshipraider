@@ -105,6 +105,20 @@ uint8_t i2c_write_register(uint8_t reg, uint8_t len, uint8_t* const data) {
     return len;
 }
 
+Drivers::Pin probe_pwr_en;
+Drivers::Pin probe_vbus_nen;
+
+void pwr_init() {
+    // TODO is this doing what I want? I.e. leaving uninitialized until pwr_init is called
+    probe_pwr_en = Drivers::Pin(GPIOB, GPIO_PIN_5, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, GPIO_PIN_RESET);
+    probe_vbus_nen = Drivers::Pin(GPIOB, GPIO_PIN_6, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, GPIO_PIN_SET);
+}
+
+void pwr_write_cb(uint8_t channel, uint8_t* data) {
+    probe_pwr_en.write((bool)*data & 0x01);
+    probe_vbus_nen.write(!((bool)*data & 0x02));
+}
+
 } // namespace Board
 
 // ---- Pin Initialization MSP functions ---- //
