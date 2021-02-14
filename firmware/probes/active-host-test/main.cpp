@@ -3,6 +3,7 @@
 #include "board.h"
 #include "fifo.hpp"
 #include "registers.hpp"
+#include "usb_pd.h"
 
 #include <stm32f1xx.h>
 #include <stm32f1xx_hal.h>
@@ -96,11 +97,20 @@ void EXTI15_10_IRQHandler(void) {
     }
 }
 
+void SysTick_Handler(void) {
+    HAL_IncTick();
 }
 
-int main() {
+}
+
+int main(void) {
     HAL_Init();
     Board::clock_init();
+    Board::pwr_init();
+
+    // I need a delay here apparently for I2C to not get stuck in BUSY
+    // TODO what's the minimum I can get away with?
+    HAL_Delay(100);
     Board::i2c_init();
     Board::spi_init();
 
@@ -118,7 +128,16 @@ int main() {
     EXTI->FTSR |= EXTI_FTSR_FT12;
     EXTI->RTSR &= ~EXTI_RTSR_RT12;
 
+    while (1) {
+        led2.toggle();
+        Board::pwr_toggle();
+        HAL_Delay(500);
+    }
+
     FUSB302::FUSB302 fusb(Board::i2c_read_register, Board::i2c_write_register);
+
+    volatile uint8_t id = fusb.get_device_id();
+
     fusb.recommended_toggle_init();
     fusb.set_toggle(FUSB302::toggle_modes::MODE_SRC, true);
     fusb.set_auto_crc(true, FUSB302::ROLE_SRC, FUSB302::ROLE_SRC, FUSB302::REV_2);
@@ -136,15 +155,33 @@ int main() {
             }
         }
 
+        // TODO I think this should be split up a bit more and made more stateful to improve
+        // responsiveness, leaving it as-is for now just for bring-up
         if (i2c_interrupt_flag) {
             uint8_t flags;
             // Make sure BC_LVL is cleared via reading
             FUSB302::error rc = fusb.get_interrupt(&flags);
+
+            // Check for I_TOGDONE
             rc = fusb.get_interrupt_a(&flags);
 
             // I_TOGDONE, we have a new device attached
             if (flags & 0x40) {
-                // I'm not sure what to do with this information
+                // Send Get_Manufacturer_Info
+
+                //  Build headers
+                uint8_t message_id = 0; // TODO make static and apply to messages properly
+                // num data objects is reserved for extended (and not chunked) messages)
+                PD::MessageHeader header(true, 0, message_id, true, PD::REV_3_0, true, PD::Get_Manufacturer_Info);
+                PD::ExtendedMessageHeader extended_header(false, 0, false, 2);
+
+                // Header + Extended Header + GMIDB
+                uint16_t buf[3];
+                buf[0] = header.serialize();
+                buf[1] = extended_header.serialize();
+                buf[2] = 0x0000; // Get info for Port/cable plug, and second byte is reserved
+
+                fusb.pd_send_message(FUSB302::SOP_1, (uint8_t*)buf, 6);
             }
 
             i2c_interrupt_flag = false;
@@ -164,6 +201,7 @@ int main() {
             } else {
                 fusb.enable_tx_driver(false, true);
             }
+
 
             // "Check for VDM"
             fusb.pd_send_message(FUSB302::SOP_2, imaginary_msg_buffer, 4);

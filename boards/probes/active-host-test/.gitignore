@@ -3,3 +3,6 @@ output/*.zip
 output/*.drl
 *-bak
 *cache*
+bom.ini
+bom/
+output/

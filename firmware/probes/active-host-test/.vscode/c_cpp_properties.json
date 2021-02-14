@@ -4,7 +4,8 @@
             "name": "Linux",
             "compilerPath": "/home/david/install/gcc-arm-none-eabi-9-2020-q2-update/bin/arm-none-eabi-gcc",
             "defines": [
-                "STM32F103xB"
+                "STM32F103xB",
+                "HAL_I2C_MODULE_ENABLED"
             ],
             "includePath": [
                 "../../STM32CubeF1/Drivers/CMSIS/Device/ST/STM32F1xx/Include/",

@@ -29,6 +29,8 @@ void pwr_init();
 /// @brief Handles writes to power management register.
 void pwr_write_cb(uint8_t channel, uint8_t* data);
 
+void pwr_toggle();
+
 } // namespace Board
 
 #endif

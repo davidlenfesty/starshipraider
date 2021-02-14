@@ -46,14 +46,16 @@ void clock_init() {
 }
 
 void i2c_init() {
-    i2c_fusb.Init.ClockSpeed         = 100000; // 100kHz
-    i2c_fusb.Init.DutyCycle          = I2C_DUTYCYCLE_2; // TODO do I care about this?
-    i2c_fusb.Init.OwnAddress1        = 0;
-    i2c_fusb.Init.AddressingMode     = I2C_ADDRESSINGMODE_7BIT;
-    i2c_fusb.Init.DualAddressMode    = I2C_DUALADDRESS_DISABLED;
-    i2c_fusb.Init.OwnAddress2        = 0;
-    i2c_fusb.Init.GeneralCallMode    = I2C_GENERALCALL_DISABLED;
-    i2c_fusb.Init.NoStretchMode      = I2C_NOSTRETCH_DISABLED;
+    i2c_fusb.Instance               = I2C2;
+
+    i2c_fusb.Init.ClockSpeed        = 100000; // 100kHz
+    i2c_fusb.Init.DutyCycle         = I2C_DUTYCYCLE_2; // TODO do I care about this?
+    i2c_fusb.Init.OwnAddress1       = 0;
+    i2c_fusb.Init.AddressingMode    = I2C_ADDRESSINGMODE_7BIT;
+    i2c_fusb.Init.DualAddressMode   = I2C_DUALADDRESS_DISABLED;
+    i2c_fusb.Init.OwnAddress2       = 0;
+    i2c_fusb.Init.GeneralCallMode   = I2C_GENERALCALL_DISABLED;
+    i2c_fusb.Init.NoStretchMode     = I2C_NOSTRETCH_DISABLED;
 
     HAL_I2C_Init(&i2c_fusb);
 }
@@ -119,6 +121,11 @@ void pwr_write_cb(uint8_t channel, uint8_t* data) {
     probe_vbus_nen.write(!((bool)*data & 0x02));
 }
 
+void pwr_toggle() {
+    probe_pwr_en.toggle();
+    probe_vbus_nen.toggle();
+}
+
 } // namespace Board
 
 // ---- Pin Initialization MSP functions ---- //
@@ -127,7 +134,7 @@ extern "C" {
 
 void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c) {
     // This will be filled in with all channels info once we write final fw.
-    // Or not, and the stm32-cpp will be written first.
+    // Or not, and the stm32-cpp port will be written first.
     if (hi2c == &i2c_fusb) {
         GPIO_InitTypeDef gpio;
         gpio.Mode = GPIO_MODE_AF_OD;

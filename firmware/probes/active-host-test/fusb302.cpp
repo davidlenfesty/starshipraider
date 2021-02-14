@@ -1,4 +1,5 @@
 #include "fusb302.h"
+#include "usb_pd.h"
 
 #include <string.h>
 
@@ -11,7 +12,7 @@ FUSB302::FUSB302(i2c_rd_fn_t read_reg_fn, i2c_wr_fn_t write_reg_fn) :
 }
 
 uint8_t FUSB302::get_device_id() {
-    uint8_t id;
+    uint8_t id = 0;
     _read_reg(REG_DEVICE_ID, 1, &id);
     return id;
 }
@@ -319,63 +320,121 @@ error FUSB302::pd_send_message(sop_types sop, uint8_t* data, uint8_t data_len) {
     return ERR_OK;
 }
 
-// Do I discard the message if it fails???
+// TODO add out param for length of message - no sense calculating it twice
+/// @brief Attempts to read in an incoming message.
+///
+/// @param read_buf[out]    Buffer to read message data into, if a transfer is incomplete,
+///                         this buffer must be maintained for every call.
+/// @param read_buf_len[in] length of message data buffer
+/// @param sop_types[out]   SOP type of message being read
+///
+/// @retval ERR_OK                  We have received a complete message.
+/// @retval ERR_NO_RX               There is no message in the buffer
+/// @retval ERR_MESSAGE_INCOMPLETE  Message has not been finished processing, come back later.
+/// @retval ERR_BUF_OVERFLOW        Message buffer has been overflown. NOT SUPPORTED
 error FUSB302::pd_read_message(uint8_t* read_buf, uint8_t read_buf_len, sop_types* sop) {
-    uint8_t fifo_buf[30 + 1]; // 30-bytes max size + 1 byte of packet type
-    uint8_t pos = 0;
-    uint8_t data_len;
+    // TODO Need to be able to manage buffer overflows. How do I convey whether or not the
+    //      entire message has been received?
 
-    _read_reg(REG_FIFO, 3, fifo_buf); // Read in Token + message header
+    // TODO this is quite brittle if we miscalculate the length of the incoming message
 
-    // Assign the correct type. Might be better to combine these into a more general enum
-    // so I don't need this dumb switch case.
-    switch (fifo_buf[0]) {
-        case (RX_TOK_SOP):
-            *sop = SOP_1;
-            break;
-        case (RX_TOK_SOP1):
-            *sop = SOP_2;
-            break;
-        case (RX_TOK_SOP2):
-            *sop = SOP_3;
-            break;
-        case (RX_TOK_SOP1DB):
-            *sop = SOP_2_DBG;
-            break;
-        case (RX_TOK_SOP2DB):
-            *sop = SOP_3_DBG;
-            break;
-        default:
-            // TODO some dbg assert here
-            // wait this is the wrong error message
-            return ERR_PROTOCOL;
+    // TODO also brittle if we aren't running fast I2C
+
+    static uint16_t read_pos = 0; // Extended messages have length of 264 (+ CRC????), 8 bits is not enough
+    static uint16_t read_len = 0; // Length of data to read, including headers and framing. Only 0 if we 
+    static bool receiving = false; // Are we currently receiving a message?
+    static bool extended = false; // If we're extended we need to read the extended header as well to determine length
+    static sop_types sop_type;
+
+    uint8_t reg;
+
+
+    // If we haven't started to receive, we pull in the RX token, which is seperate from the PD message.
+    if (!receiving) {
+        // Check if we have bytes to read
+        _read_reg(REG_STATUS_1, 1, &reg);
+
+        // Check if RX_EMPTY
+        if (reg & (1 << 5)) {
+            // Nothing to read!
+            return ERR_NO_RX;
+        }
+
+        // We have started receiving a message, reset values
+        receiving = true;
+        extended = false;
+        read_pos = 0;
+        read_len = 0;
+
+        // Read in RX token
+        _read_reg(REG_FIFO, 1, &reg);
+        switch (reg) {
+            case (RX_TOK_SOP):
+                *sop = SOP_1;
+                break;
+            case (RX_TOK_SOP1):
+                *sop = SOP_2;
+                break;
+            case (RX_TOK_SOP2):
+                *sop = SOP_3;
+                break;
+            case (RX_TOK_SOP1DB):
+                *sop = SOP_2_DBG;
+                break;
+            case (RX_TOK_SOP2DB):
+                *sop = SOP_3_DBG;
+                break;
+            default:
+                // TODO some dbg assert here
+                // wait this is the wrong error message
+                return ERR_PROTOCOL;
+        }
     }
 
-    // Get length of data to read.
-    // Check for extended packet
-    if (fifo_buf[0] & 0x80) {
-        // Extended packet, no. of data objects is undefined here, use extended header
+    // Read out while we have data in the RX buffer
+    _read_reg(REG_STATUS_1, 1, &reg);
+    while (!(reg & (1 << 5))) {
+        _read_reg(REG_FIFO, 1, &read_buf[read_pos]);
+        read_pos += 1;
 
-        // TODO
+        // If we're reading the header, we need 
+        if (read_pos == 2) {
+            PD::MessageHeader header(read_buf);
+            if (header.extended) {
+                // If extended, we don't calc length yet
+                extended = true;
+            } else {
+                // Otherwise, we get length from no. DO's
+                read_len = 2 + header.num_data_objects * 4;
+            }
+        } else if (extended && read_pos == 4) {
+            PD::ExtendedMessageHeader header(&read_buf[2]);
+            read_len = 4 + header.data_size;
+        }
 
-        // Read in 2 bytes of extended header
+        // TODO might be a logic "leak" here, if length does not get set correctly
+        // Stop loop if we hit the end of the message we're reading
+        if (read_pos == read_len) {
+            break;
+        }
+
+        // Buffer overflow!
+        // UNSUPPORTED
+        if (read_pos == read_buf_len) {
+            return ERR_BUF_OVERFLOW;
+        }
+    }
+
+    // TODO we can get rid of this
+    *sop = sop_type;
+
+    // Final check to see if we have completed receiving the message
+    if (read_pos == read_len) {
+        receiving = false;
+        return ERR_OK;
     } else {
-        // Regular packet use number of data objects to determine size.
-
-        // Extract number of data objects, each of these are 16-bits + 3 bytes we've read
-        data_len = (fifo_buf[0] & 0x7 >> 4) * 2;
+        return ERR_MESSAGE_INCOMPLETE;
     }
-
-    // TODO add some way to finish receiving rest of the packet.
-    if (pos + data_len > read_buf_len) {
-        return ERR_BUF_OVERFLOW;
-    }
-
-    // Read out message data
-    _read_reg(REG_FIFO, data_len, &fifo_buf[pos]);
-    pos += data_len;
-
-    return ERR_OK;
 }
 
 } // namespace FUSB302

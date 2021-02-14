@@ -12,7 +12,9 @@ enum spec_revisions : uint8_t {
     REV_3_0,
 };
 
-enum control_message_types : uint8_t {
+typedef uint8_t message_types;
+
+enum control_message_types : message_types {
     GoodCRC = 1,
     GotoMin,
     Accept,
@@ -35,7 +37,7 @@ enum control_message_types : uint8_t {
     Get_Sink_Cap_Extended,
 };
 
-enum data_message_types : uint8_t {
+enum data_message_types : message_types {
     Source_Capabilities = 1,
     Request,
     BIST,
@@ -47,7 +49,7 @@ enum data_message_types : uint8_t {
     Vencor_defined = 15,
 };
 
-enum extended_message_types : uint8_t {
+enum extended_message_types : message_types {
     Source_Capabilities_Extended = 1,
     Status,
     Get_Battery_Cap,
@@ -63,12 +65,6 @@ enum extended_message_types : uint8_t {
     Country_Info,
     Country_Codes,
     Sink_Capabilities_Extended,
-};
-
-union message_types {
-    control_message_types   control;
-    data_message_types      data;
-    extended_message_types  extended;
 };
 
 struct MessageHeader {
@@ -101,6 +97,19 @@ struct MessageHeader {
         ///
         /// @returns 0 if no errors, -1 if buffer would be overflowed.
         int serialize_buf(uint8_t* buf, size_t buf_offset, size_t buf_len);
+};
+
+struct ExtendedMessageHeader {
+    public:
+        bool chunked;
+        uint8_t chunk_number;
+        bool request_chunk;
+        uint16_t data_size;
+
+        ExtendedMessageHeader(bool chunked, uint8_t chunk_number, bool request_chunk, uint16_t data_size);
+        ExtendedMessageHeader(uint8_t* header);
+
+        uint16_t serialize();
 };
 
 } // namespace PD

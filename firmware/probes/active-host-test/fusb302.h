@@ -112,6 +112,9 @@ enum error {
     ERR_BUF_OVERFLOW, // Invalid buffer length
     ERR_INVALID_INPUT, // A given parameter was invalid.
     ERR_PROTOCOL, // USB-C protocol error of some sort (what a great error type)
+
+    ERR_NO_RX, // No message to read.
+    ERR_MESSAGE_INCOMPLETE, // Incoming USB PD message isn't finished reading out.
 };
 
 // Used for power and data roles
