@@ -9,6 +9,11 @@
 #include <stm32f1xx_hal.h>
 
 #include <tuple>
+#include <string.h>
+
+#if !defined(HOST) && !defined(PROBE)
+#define HOST
+#endif
 
 // TODO libraries and such should be built as fallible!
 // currently they assume everything is perfect which is not always the case.
@@ -128,19 +133,22 @@ int main(void) {
     EXTI->FTSR |= EXTI_FTSR_FT12;
     EXTI->RTSR &= ~EXTI_RTSR_RT12;
 
-    while (1) {
-        led2.toggle();
-        Board::pwr_toggle();
-        HAL_Delay(500);
-    }
-
     FUSB302::FUSB302 fusb(Board::i2c_read_register, Board::i2c_write_register);
 
     volatile uint8_t id = fusb.get_device_id();
 
-    fusb.recommended_toggle_init();
+    fusb.write_masks(0xFE, 0xBF, 0x00); // Enable I_TOGDONE, I_GCRCSENT, I_BC_LVL
+    fusb.set_vconn_pwr(FUSB302::VCONN_PWR_NONE);
+    fusb.set_host_current(FUSB302::HOST_CURRENT_DEFAULT_500mA);
+    #ifdef HOST
     fusb.set_toggle(FUSB302::toggle_modes::MODE_SRC, true);
     fusb.set_auto_crc(true, FUSB302::ROLE_SRC, FUSB302::ROLE_SRC, FUSB302::REV_2);
+    #endif
+    #ifdef PROBE
+    fusb.set_toggle(FUSB302::toggle_modes::MODE_SNK, true);
+    fusb.set_auto_crc(true, FUSB302::ROLE_SNK, FUSB302::ROLE_SNK, FUSB302::REV_2);
+    #endif
+    fusb.power_enable(0x07);
 
     while (1) {
         blink_led(&led1);
@@ -158,18 +166,22 @@ int main(void) {
         // TODO I think this should be split up a bit more and made more stateful to improve
         // responsiveness, leaving it as-is for now just for bring-up
         if (i2c_interrupt_flag) {
-            uint8_t flags;
+            uint8_t flags[3];
             // Make sure BC_LVL is cleared via reading
-            FUSB302::error rc = fusb.get_interrupt(&flags);
+            // TODO check error messages
+            FUSB302::error rc = fusb.get_interrupt(&flags[0]);
+            rc = fusb.get_interrupt_a(&flags[1]);
+            rc = fusb.get_interrupt_b(&flags[2]);
+            // TODO Do I need to clear these flags? Not sure if R/C means it clears on read or that
+            //      we are only able to read and clear.
 
-            // Check for I_TOGDONE
-            rc = fusb.get_interrupt_a(&flags);
+            if (flags[1] & 0x40) {
+                // I_TOGDONE, we have a new device attached
 
-            // I_TOGDONE, we have a new device attached
-            if (flags & 0x40) {
                 // Send Get_Manufacturer_Info
 
                 //  Build headers
+                #ifdef HOST
                 uint8_t message_id = 0; // TODO make static and apply to messages properly
                 // num data objects is reserved for extended (and not chunked) messages)
                 PD::MessageHeader header(true, 0, message_id, true, PD::REV_3_0, true, PD::Get_Manufacturer_Info);
@@ -182,31 +194,49 @@ int main(void) {
                 buf[2] = 0x0000; // Get info for Port/cable plug, and second byte is reserved
 
                 fusb.pd_send_message(FUSB302::SOP_1, (uint8_t*)buf, 6);
+
+                led2.clear();
+                #endif // PROBE
+            } else if (flags[2] & 0x01) {
+                // I_GCRCSENT, we've received a valid message
+                uint8_t message_buf[30];
+                FUSB302::sop_types sop_type;
+                fusb.pd_read_message(message_buf, sizeof(message_buf), &sop_type);
+
+                #ifdef HOST
+                // Only care about messages meant for us.
+                if (sop_type == FUSB302::SOP_1) {
+                    PD::MessageHeader header(message_buf);
+
+                    if (header.extended && header.message_type == PD::Manufacturer_Info) {
+                        led2.set();
+                    }
+                }
+                #endif // HOST
+
+                #ifdef PROBE
+                if (sop_type == FUSB302::SOP_1) {
+                    PD::MessageHeader header(message_buf);
+
+                    led2.set();
+
+                    // Return Manufacturer_Info message
+                    if (header.extended && header.message_type == PD::Get_Manufacturer_Info) {
+                        PD::MessageHeader out_header(true, 0, 0, false, PD::REV_3_0, false, PD::Manufacturer_Info);
+                        PD::ExtendedMessageHeader extended_header(false, 0, false, 4 + sizeof("AKL"));
+
+                        *((uint16_t*)&message_buf[0]) = out_header.serialize();
+                        *((uint16_t*)&message_buf[2]) = extended_header.serialize();
+                        strcpy((char*)&message_buf[8], "AKL");
+
+                        fusb.pd_send_message(FUSB302::SOP_1, (uint8_t*) message_buf, 8 + sizeof("AKL"));
+                    }
+                }
+
+                #endif // PROBE
             }
 
             i2c_interrupt_flag = false;
-        }
-
-
-        // Let's say this was checking an interrupt-set flag, say we finished the TOGGLE stuff
-        if (1) {
-            uint8_t imaginary_msg_buffer[8];
-            FUSB302::sop_types sop_type;
-            // Find correct pin
-            FUSB302::toggle_states state = fusb.get_toggle_state();
-            fusb.reset_pd();
-
-            if (state == FUSB302::TOGGLE_SRC_CC1) {
-                fusb.enable_tx_driver(true, false);
-            } else {
-                fusb.enable_tx_driver(false, true);
-            }
-
-
-            // "Check for VDM"
-            fusb.pd_send_message(FUSB302::SOP_2, imaginary_msg_buffer, 4);
-            // VDM response!
-            fusb.pd_read_message(imaginary_msg_buffer, 8, &sop_type);
         }
     }
 }

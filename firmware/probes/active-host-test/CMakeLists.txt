@@ -7,6 +7,14 @@ file(GLOB ST_HAL_SRCS ../../STM32CubeF1/Drivers/STM32F1xx_HAL_Driver/Src/*.c)
 list(FILTER ST_HAL_SRCS EXCLUDE REGEX .*template.c)
 file(GLOB NEWLIB_STUB_SRCS ../../stm32-cpp/src/newlib-stubs/*.cpp)
 
+option(HOST "Compile FW for host side" ON)
+
+if(HOST)
+    add_compile_definitions(HOST)
+else()
+    add_compile_definitions(PROBE)
+endif()
+
 add_executable(firmware.elf
     main.cpp
     board.cpp
@@ -22,7 +30,7 @@ add_executable(firmware.elf
 # Link properly
 set_target_properties(firmware.elf PROPERTIES LINK_DEPENDS ${PROJECT_SOURCE_DIR}/stm32f103x8.ld)
 # TODO fix up our linker script and use it here, we are missing *something*, probably the entry point
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -T ${PROJECT_SOURCE_DIR}../../STM32CubeF1/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/linker/STM32F103X6.ld")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -T ${PROJECT_SOURCE_DIR}/../../STM32CubeF1/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/linker/STM32F103X6_FLASH.ld")
 # Standard include directories
 target_include_directories(firmware.elf PUBLIC
     ../../STM32CubeF1/Drivers/CMSIS/Device/ST/STM32F1xx/Include
