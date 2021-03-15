@@ -11,29 +11,28 @@ namespace Board {
 
 /// Set up clocks for HSE, providing 72MHz sys clock
 void clock_init() {
-    RCC_PLLInitTypeDef pll_cfg;
-    pll_cfg.PLLMUL = RCC_PLL_MUL9;
-    pll_cfg.PLLSource = RCC_PLLSOURCE_HSE;
-    pll_cfg.PLLState = RCC_PLL_ON;
+    //RCC_PLLInitTypeDef pll_cfg;
+    //pll_cfg.PLLMUL = RCC_PLL_MUL9;
+    //pll_cfg.PLLSource = RCC_PLLSOURCE_HSE;
+    //pll_cfg.PLLState = RCC_PLL_ON;
 
-    RCC_OscInitTypeDef osc_cfg;
-    osc_cfg.HSEState = RCC_HSE_ON;
-    osc_cfg.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-    osc_cfg.PLL = pll_cfg;
+    //RCC_OscInitTypeDef osc_cfg;
+    //osc_cfg.HSEState = RCC_HSE_ON;
+    //osc_cfg.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+    //osc_cfg.PLL = pll_cfg;
 
-    // Turn HSE on along with PLL
-    osc_cfg.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-    HAL_RCC_OscConfig(&osc_cfg);
+    //// Turn HSE on along with PLL
+    //osc_cfg.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+    //HAL_RCC_OscConfig(&osc_cfg);
 
-    // Select PLL as clock source for the system clock
-    RCC_ClkInitTypeDef clk_cfg;
-    clk_cfg.ClockType = RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-    clk_cfg.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK; // Get SYSCLK from 72MHz PLL
-    clk_cfg.AHBCLKDivider = RCC_SYSCLK_DIV1;        // 72MHz HCLK
-    clk_cfg.APB1CLKDivider = RCC_HCLK_DIV2;         // 36MHz PCLK1
-    clk_cfg.APB2CLKDivider = RCC_HCLK_DIV2;         // 36MHz PCLK2
-    HAL_RCC_ClockConfig(&clk_cfg, 2); // Unsure about flash latency
-
+    //// Select PLL as clock source for the system clock
+    //RCC_ClkInitTypeDef clk_cfg;
+    //clk_cfg.ClockType = RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    //clk_cfg.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK; // Get SYSCLK from 72MHz PLL
+    //clk_cfg.AHBCLKDivider = RCC_SYSCLK_DIV1;        // 72MHz HCLK
+    //clk_cfg.APB1CLKDivider = RCC_HCLK_DIV2;         // 36MHz PCLK1
+    //clk_cfg.APB2CLKDivider = RCC_HCLK_DIV2;         // 36MHz PCLK2
+    //HAL_RCC_ClockConfig(&clk_cfg, 2); // Unsure about flash latency
 
     // Enable peripheral clocks
     __HAL_RCC_USART1_CLK_ENABLE();
@@ -43,12 +42,13 @@ void clock_init() {
     __HAL_RCC_SPI2_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_AFIO_CLK_ENABLE();
 }
 
 void i2c_init() {
     i2c_fusb.Instance               = I2C2;
 
-    i2c_fusb.Init.ClockSpeed        = 100000; // 100kHz
+    i2c_fusb.Init.ClockSpeed        = 400000; // FUSB302 must be run at a minimum of 400kHz
     i2c_fusb.Init.DutyCycle         = I2C_DUTYCYCLE_2; // TODO do I care about this?
     i2c_fusb.Init.OwnAddress1       = 0;
     i2c_fusb.Init.AddressingMode    = I2C_ADDRESSINGMODE_7BIT;
@@ -88,7 +88,7 @@ void spi_init() {
 
     // Enable interrupts
     NVIC_SetPriority(SPI1_IRQn, 0);
-    NVIC_SetPriority(EXTI0_IRQn, 0);
+    NVIC_SetPriority(EXTI4_IRQn, 0);
     NVIC_EnableIRQ(SPI1_IRQn);
     NVIC_EnableIRQ(EXTI4_IRQn);
 }

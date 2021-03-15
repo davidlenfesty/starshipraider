@@ -54,7 +54,7 @@ error FUSB302::enable_interrupts(bool en) {
     uint8_t reg;
     _read_reg(REG_CONTROL_0, 1, &reg);
     reg &= ~(1 << 5);
-    reg |= (en << 5);
+    reg |= (!en << 5);
     _write_reg(REG_CONTROL_0, 1, &reg);
 
     return ERR_OK;
@@ -68,8 +68,9 @@ void FUSB302::write_masks(uint8_t mask, uint8_t mask_a, uint8_t mask_b) {
     _write_reg(REG_MASK, 1, &mask);
 
     // Write next two, these are consecutive so can be bundled in one write.
-    uint8_t _mask[] = { mask_a, mask_b };
-    _write_reg(REG_MASK_A, 2, _mask);
+    //uint8_t _mask[] = { mask_a, mask_b };
+    _write_reg(REG_MASK_A, 1, &mask_a);
+    _write_reg(REG_MASK_B, 1, &mask_b);
 }
 
 error FUSB302::get_interrupt(uint8_t* const flags) {
@@ -96,12 +97,12 @@ void FUSB302::recommended_toggle_init() {
     set_host_current(HOST_CURRENT_DEFAULT_500mA);
 }
 
-void FUSB302::set_toggle(toggle_modes mode, bool en) {
+void FUSB302::set_toggle(toggle_modes mode, bool toggle_rd_only, bool en) {
     // Set MODE bits appropriately and enable TOGGLE if specified.
     uint8_t control_2;
     _read_reg(REG_CONTROL_2, 1, &control_2);
     control_2 &= 0xF8;
-    control_2 |= (mode << 1) | (en ? 1 : 0);
+    control_2 |= (toggle_rd_only << 5) | (mode << 1) | (en ? 1 : 0);
     _write_reg(REG_CONTROL_2, 1, &control_2);
 }
 
@@ -229,6 +230,10 @@ error FUSB302::set_auto_crc(bool en, role_types power_role, role_types data_role
 
     _write_reg(REG_SWITCHES_1, 1, &reg);
 
+    _read_reg(REG_SWITCHES_1, 1, &reg);
+    _read_reg(REG_SWITCHES_1, 1, &reg);
+    _read_reg(REG_SWITCHES_1, 1, &reg);
+    _read_reg(REG_SWITCHES_1, 1, &reg);
     return ERR_OK;
 }
 
@@ -260,7 +265,7 @@ error FUSB302::enable_sop_prime(bool sop_2, bool sop_3, bool sop_2_dbg, bool sop
 error FUSB302::enable_tx_driver(bool cc1, bool cc2) {
     uint8_t reg;
     _read_reg(REG_SWITCHES_1, 1, &reg);
-    reg &= ~(0xFC);
+    reg &= ~(0x03);
     reg |= (cc1 << 0) | (cc2 << 1);
     _write_reg(REG_CONTROL_1, 1, &reg);
 
@@ -271,6 +276,8 @@ error FUSB302::pd_send_message(sop_types sop, uint8_t* data, uint8_t data_len) {
 
     uint8_t fifo_buf[30 + 9]; // Max message size is 30 bytes + FIFO tokens
     uint8_t pos = 0;
+
+    pd_fifo_flush(true, false);
 
     if (data_len > 30) {
         return ERR_BUF_OVERFLOW;
@@ -312,10 +319,28 @@ error FUSB302::pd_send_message(sop_types sop, uint8_t* data, uint8_t data_len) {
     fifo_buf[pos++] = TX_TOK_JAM_CRC;   // Add CRC
     fifo_buf[pos++] = TX_TOK_EOP;       // Send EOP
     fifo_buf[pos++] = TX_TOK_TXOFF;     // Turn off transmitter.
-    fifo_buf[pos++] = TX_TOK_TXON;      // Start transmission now (not technically a token, more of a command.)
+    //fifo_buf[pos++] = TX_TOK_TXON;      // Start transmission now (not technically a token, more of a command.)
 
+
+    //for (uint8_t i = 0; i < pos; ++i) {
+    //    _write_reg(REG_FIFO, 1, &fifo_buf[i]);
+
+    //}
     // Write to FIFO register
+    uint8_t pre_status = 0;
+    uint8_t post_status = 0;
+    _read_reg(REG_STATUS_1, 1, &pre_status);
     _write_reg(REG_FIFO, pos, fifo_buf);
+
+    uint8_t reg;
+    _read_reg(REG_CONTROL_0, 1, &reg);
+    reg |= 1;
+    _write_reg(REG_CONTROL_0, 1, &reg);
+
+
+    uint8_t status;
+    _read_reg(REG_STATUS_1, 1, &post_status);
+    _read_reg(REG_SWITCHES_1, 1, &status);
 
     return ERR_OK;
 }

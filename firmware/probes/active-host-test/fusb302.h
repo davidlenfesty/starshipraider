@@ -28,9 +28,9 @@ enum registers : uint8_t {
     REG_INTERRUPT_A,
     REG_INTERRUPT_B,
     REG_STATUS_0,
-    REG_STATUS_1,
+    REG_STATUS_1 = 0x41,
     REG_INTERRUPT,
-    REG_FIFO,
+    REG_FIFO = 0x43,
 };
 
 enum toggle_modes : uint8_t {
@@ -208,7 +208,7 @@ class FUSB302 {
         void recommended_toggle_init();
 
         /// @brief Enable/disable automatic DRP, SNK, SRC functionality
-        void set_toggle(toggle_modes mode, bool en);
+        void set_toggle(toggle_modes mode, bool toggle_rd_only, bool en);
 
         /// @brief Applies the host-side pullup current to the given CCx pins
         void set_pullup(bool cc1, bool cc2);
@@ -249,7 +249,7 @@ class FUSB302 {
         /// @brief Reads USB PD message from FIFO.
         error pd_read_message(uint8_t* read_buf, uint8_t read_buf_len, sop_types* sop);
 
-    private:
+    //private:
         i2c_rd_fn_t _read_reg;
         i2c_wr_fn_t _write_reg;
 

@@ -25,13 +25,14 @@ void blink_led(Drivers::Pin* led) {
     // I'm assuming the compiler won't get funky with me and screw up my wrapping unsigned subtraction.
     if (HAL_GetTick() - ticks > 500) {
         led->toggle();
+        ticks = HAL_GetTick();
     }
 }
 
 // TODO maybe make this not global
 RegisterInterface::SpiRegisterInterface<1, 8> reg;
 Fifo<std::tuple<uint8_t, uint8_t>, 8> write_fifo;
-bool i2c_interrupt_flag;
+volatile bool i2c_interrupt_flag;
 
 // IRQ Handlers
 extern "C" {
@@ -98,7 +99,10 @@ void EXTI15_10_IRQHandler(void) {
         i2c_interrupt_flag = true;
 
         // Clear EXTI channel 12 *specifically*
-        EXTI->PR &= ~(1 << 12);
+        EXTI->PR |= 1 << 12;
+        i2c_interrupt_flag = true;
+        i2c_interrupt_flag = false;
+        i2c_interrupt_flag = true;
     }
 }
 
@@ -132,23 +136,31 @@ int main(void) {
     EXTI->IMR |= EXTI_IMR_IM12;
     EXTI->FTSR |= EXTI_FTSR_FT12;
     EXTI->RTSR &= ~EXTI_RTSR_RT12;
+    AFIO->EXTICR[3] |= 0b0001 << 0;
+    NVIC_SetPriority(EXTI15_10_IRQn, 0);
+    NVIC_EnableIRQ(EXTI15_10_IRQn);
 
     FUSB302::FUSB302 fusb(Board::i2c_read_register, Board::i2c_write_register);
 
     volatile uint8_t id = fusb.get_device_id();
 
-    fusb.write_masks(0xFE, 0xBF, 0x00); // Enable I_TOGDONE, I_GCRCSENT, I_BC_LVL
+    fusb.reset();
+    fusb.reset_pd();
+
+    HAL_Delay(20);
+    fusb.write_masks(0xFF, 0xBF, 0x00); // Enable I_TOGDONE, I_GCRCSENT, I_BC_LVL
     fusb.set_vconn_pwr(FUSB302::VCONN_PWR_NONE);
     fusb.set_host_current(FUSB302::HOST_CURRENT_DEFAULT_500mA);
     #ifdef HOST
-    fusb.set_toggle(FUSB302::toggle_modes::MODE_SRC, true);
+    fusb.set_toggle(FUSB302::toggle_modes::MODE_SRC, true, true);
     fusb.set_auto_crc(true, FUSB302::ROLE_SRC, FUSB302::ROLE_SRC, FUSB302::REV_2);
     #endif
     #ifdef PROBE
-    fusb.set_toggle(FUSB302::toggle_modes::MODE_SNK, true);
+    fusb.set_toggle(FUSB302::toggle_modes::MODE_SNK, true,  true);
     fusb.set_auto_crc(true, FUSB302::ROLE_SNK, FUSB302::ROLE_SNK, FUSB302::REV_2);
     #endif
-    fusb.power_enable(0x07);
+    fusb.enable_interrupts(true);
+    fusb.power_enable(0x0F);
 
     while (1) {
         blink_led(&led1);
@@ -178,25 +190,44 @@ int main(void) {
             if (flags[1] & 0x40) {
                 // I_TOGDONE, we have a new device attached
 
+                // TMP enable transmitter etc.
+                // TODO put this into driver
+                uint8_t status;
+                fusb._read_reg(FUSB302::REG_STATUS_1_A, 1, &status);
+                uint8_t switches_1 = 0;
+                fusb._read_reg(0x03, 1, &switches_1);
+                status = (status >> 3) & 0x07;
+                // 0b001: SRC CC1
+                // 0b010: SRC CC2
+                if (status == 0b001) {
+                    fusb.enable_tx_driver(true, false);
+                } else if (status == 0b010) {
+                    fusb.enable_tx_driver(false, true);
+                }
+                HAL_Delay(100);
                 // Send Get_Manufacturer_Info
+
+                fusb._read_reg(0x03, 1, &switches_1);
 
                 //  Build headers
                 #ifdef HOST
                 uint8_t message_id = 0; // TODO make static and apply to messages properly
                 // num data objects is reserved for extended (and not chunked) messages)
-                PD::MessageHeader header(true, 0, message_id, true, PD::REV_3_0, true, PD::Get_Manufacturer_Info);
-                PD::ExtendedMessageHeader extended_header(false, 0, false, 2);
+                //PD::MessageHeader header(true, 0, message_id, true, PD::REV_3_0, true, PD::Get_Manufacturer_Info);
+                //PD::ExtendedMessageHeader extended_header(false, 0, false, 2);
+
+                PD::MessageHeader header(false, 0, message_id, true, PD::REV_3_0, true, PD::Ping);
 
                 // Header + Extended Header + GMIDB
                 uint16_t buf[3];
                 buf[0] = header.serialize();
-                buf[1] = extended_header.serialize();
-                buf[2] = 0x0000; // Get info for Port/cable plug, and second byte is reserved
+                //buf[1] = extended_header.serialize();
+                //buf[2] = 0x0000; // Get info for Port/cable plug, and second byte is reserved
 
-                fusb.pd_send_message(FUSB302::SOP_1, (uint8_t*)buf, 6);
+                fusb.pd_send_message(FUSB302::SOP_1, (uint8_t*)buf, 2);
 
                 led2.clear();
-                #endif // PROBE
+                #endif // HOST
             } else if (flags[2] & 0x01) {
                 // I_GCRCSENT, we've received a valid message
                 uint8_t message_buf[30];
@@ -237,6 +268,14 @@ int main(void) {
             }
 
             i2c_interrupt_flag = false;
+        }
+
+        uint8_t flags;
+        fusb._read_reg(FUSB302::REG_STATUS_1, 1, &flags);
+
+        if (flags & 0x40) {
+            led2.toggle();
+            HAL_Delay(100);
         }
     }
 }

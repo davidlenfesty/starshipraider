@@ -6,7 +6,7 @@
             "defines": [
                 "STM32F103xB",
                 "HAL_I2C_MODULE_ENABLED",
-                "PROBE"
+                "HOST"
             ],
             "includePath": [
                 "../../STM32CubeF1/Drivers/CMSIS/Device/ST/STM32F1xx/Include/",
