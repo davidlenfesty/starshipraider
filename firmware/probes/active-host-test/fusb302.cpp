@@ -238,16 +238,22 @@ error FUSB302::set_auto_crc(bool en, role_types power_role, role_types data_role
 }
 
 error FUSB302::pd_fifo_flush(bool tx, bool rx) {
-    uint8_t buf[2];
-    _read_reg(REG_CONTROL_0, 2, buf);
-    // TX FIFO Flush
-    buf[0] &= ~(1 << 6);
-    buf[0] |= tx << 6;
-    // RX FIFO Flush
-    buf[1] &= ~(1 << 2);
-    buf[1] |= rx << 2;
+    uint8_t reg;
+    if (tx) {
+        // TX FIFO Flush
+        _read_reg(REG_CONTROL_0, 1, &reg);
+        reg &= ~(1 << 6);
+        reg |= tx << 6;
+        _write_reg(REG_CONTROL_0, 1, &reg);
+    }
 
-    _write_reg(REG_CONTROL_0, 2, buf);
+    if (rx) {
+        // TX FIFO Flush
+        _read_reg(REG_CONTROL_1, 1, &reg);
+        reg &= ~(1 << 2);
+        reg |= tx << 2;
+        _write_reg(REG_CONTROL_1, 1, &reg);
+    }
 
     return ERR_OK;
 }
@@ -267,7 +273,17 @@ error FUSB302::enable_tx_driver(bool cc1, bool cc2) {
     _read_reg(REG_SWITCHES_1, 1, &reg);
     reg &= ~(0x03);
     reg |= (cc1 << 0) | (cc2 << 1);
-    _write_reg(REG_CONTROL_1, 1, &reg);
+    _write_reg(REG_SWITCHES_1, 1, &reg);
+
+    return ERR_OK;
+}
+
+error FUSB302::set_measure(bool cc1, bool cc2) {
+    uint8_t reg;
+    _read_reg(REG_SWITCHES_0, 1, &reg);
+    reg &= !(0x03 << 2);
+    reg |= (cc1 << 2) | (cc2 << 3);
+    _write_reg(REG_SWITCHES_0, 1, &reg);
 
     return ERR_OK;
 }

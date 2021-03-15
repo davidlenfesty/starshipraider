@@ -240,6 +240,9 @@ class FUSB302 {
         /// @brief Enable the USB PD TX driver on the given pins
         error enable_tx_driver(bool cc1, bool cc2);
 
+        /// @brief set measure pins
+        error set_measure(bool cc1, bool cc2);
+
         /// @brief Sends a USB PD message.
         ///
         /// @note Deals with framing of the message itself, header should be included in the data,

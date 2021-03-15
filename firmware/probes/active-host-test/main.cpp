@@ -197,12 +197,15 @@ int main(void) {
                 uint8_t switches_1 = 0;
                 fusb._read_reg(0x03, 1, &switches_1);
                 status = (status >> 3) & 0x07;
+
                 // 0b001: SRC CC1
                 // 0b010: SRC CC2
                 if (status == 0b001) {
                     fusb.enable_tx_driver(true, false);
+                    fusb.set_measure(true, false);
                 } else if (status == 0b010) {
                     fusb.enable_tx_driver(false, true);
+                    fusb.set_measure(false, true);
                 }
                 HAL_Delay(100);
                 // Send Get_Manufacturer_Info
