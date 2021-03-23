@@ -226,9 +226,9 @@ F 3 "" H 1050 6050 50  0001 C CNN
 $EndComp
 Text HLabel 7900 2650 0    50   Input ~ 0
 PROBE_PWR_EN
-Text HLabel 7600 4550 0    50   Input ~ 0
-VBUS_~EN
-Text Label 9050 4000 0    50   ~ 0
+Text HLabel 7700 4350 0    50   Input ~ 0
+VBUS_EN
+Text Label 9050 4050 0    50   ~ 0
 VBUS
 Text Label 3450 2400 0    50   ~ 0
 +7V_GATED
@@ -388,38 +388,6 @@ Wire Wire Line
 	8100 2000 8100 2650
 Wire Wire Line
 	8100 2650 8250 2650
-$Comp
-L project:LM66100 U405
-U 1 1 5FECA27D
-P 8450 4050
-F 0 "U405" H 8475 4325 50  0000 C CNN
-F 1 "LM66100" H 8475 4234 50  0000 C CNN
-F 2 "Package_TO_SOT_SMD:SOT-363_SC-70-6" H 8400 4050 50  0001 C CNN
-F 3 "https://www.ti.com/lit/ds/symlink/lm66100.pdf?HQS=dis-dk-null-digikeymode-dsf-pf-null-wwe&ts=1609185393082" H 8400 4050 50  0001 C CNN
-F 4 "296-53541-1-ND" H 8450 4050 50  0001 C CNN "DPN"
-	1    8450 4050
-	1    0    0    -1  
-$EndComp
-$Comp
-L power:GND #PWR0408
-U 1 1 5FED23B4
-P 8050 4550
-F 0 "#PWR0408" H 8050 4300 50  0001 C CNN
-F 1 "GND" H 8055 4377 50  0000 C CNN
-F 2 "" H 8050 4550 50  0001 C CNN
-F 3 "" H 8050 4550 50  0001 C CNN
-	1    8050 4550
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	8800 4000 9050 4000
-Wire Wire Line
-	8150 4400 8050 4400
-Wire Wire Line
-	8050 4400 8050 4550
-NoConn ~ 8800 4400
-Text Notes 7550 4950 0    50   ~ 0
-Cheaper than doing it with discrete components
 Wire Wire Line
 	8100 2650 7900 2650
 Connection ~ 8100 2650
@@ -455,36 +423,8 @@ Wire Notes Line
 	700  7300 700  5200
 Wire Notes Line
 	700  5200 3100 5200
-Text HLabel 7400 4000 0    50   Input ~ 0
+Text HLabel 7450 4050 0    50   Input ~ 0
 +5V
-$Comp
-L Device:R R402
-U 1 1 6008066D
-P 7650 4150
-F 0 "R402" V 7443 4150 50  0000 C CNN
-F 1 "10k" V 7534 4150 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 7580 4150 50  0001 C CNN
-F 3 "~" H 7650 4150 50  0001 C CNN
-F 4 "311-10KLDCT-ND" H 7650 4150 50  0001 C CNN "DPN"
-	1    7650 4150
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	7800 4100 7800 4550
-Wire Wire Line
-	7800 4550 7650 4550
-Wire Wire Line
-	7800 4100 8150 4100
-Wire Wire Line
-	7400 4000 7650 4000
-Connection ~ 7650 4000
-Wire Wire Line
-	7650 4000 8150 4000
-Wire Wire Line
-	7650 4300 7650 4550
-Connection ~ 7650 4550
-Wire Wire Line
-	7650 4550 7600 4550
 $Comp
 L Device:Thermistor_PTC TH401
 U 1 1 600B2B6E
@@ -711,4 +651,54 @@ Wire Notes Line
 	7100 3700 7100 5150
 Wire Notes Line
 	4200 3700 7100 3700
+$Comp
+L project:TPS2051C U405
+U 1 1 605D48C2
+P 8400 4150
+F 0 "U405" H 8400 4475 50  0000 C CNN
+F 1 "TPS2051C" H 8400 4384 50  0000 C CNN
+F 2 "Package_TO_SOT_SMD:SOT-23-5" H 8350 4150 50  0001 C CNN
+F 3 "https://www.ti.com/lit/ds/symlink/tps2051c.pdf?ts=1616458018623&ref_url=https%253A%252F%252Fwww.ti.com%252Fproduct%252FTPS2051C" H 8350 4150 50  0001 C CNN
+	1    8400 4150
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8700 4050 9050 4050
+Wire Wire Line
+	7450 4050 7550 4050
+Wire Wire Line
+	7700 4350 8100 4350
+$Comp
+L Device:R R4
+U 1 1 605E3FEA
+P 7850 4250
+F 0 "R4" V 7750 4350 50  0000 C CNN
+F 1 "10k" V 7750 4200 50  0000 C CNN
+F 2 "Resistor_SMD:R_0603_1608Metric" V 7780 4250 50  0001 C CNN
+F 3 "~" H 7850 4250 50  0001 C CNN
+	1    7850 4250
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	8000 4250 8100 4250
+Wire Wire Line
+	7700 4250 7550 4250
+Wire Wire Line
+	7550 4250 7550 4050
+Connection ~ 7550 4050
+Wire Wire Line
+	7550 4050 8100 4050
+Wire Wire Line
+	8500 4500 8500 4600
+$Comp
+L power:GND #PWR0121
+U 1 1 605EACA4
+P 8500 4600
+F 0 "#PWR0121" H 8500 4350 50  0001 C CNN
+F 1 "GND" H 8505 4427 50  0000 C CNN
+F 2 "" H 8500 4600 50  0001 C CNN
+F 3 "" H 8500 4600 50  0001 C CNN
+	1    8500 4600
+	1    0    0    -1  
+$EndComp
 $EndSCHEMATC

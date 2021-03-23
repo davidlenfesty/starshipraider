@@ -489,10 +489,10 @@ Wire Wire Line
 Connection ~ 2300 1650
 Text Label 1850 1650 2    50   ~ 0
 NRST
-Text Label 4800 3550 0    50   ~ 0
+Text Label 4800 3650 0    50   ~ 0
 SWO
 Wire Wire Line
-	4500 3550 4800 3550
+	4500 3650 4800 3650
 $Comp
 L Connector:Conn_ARM_JTAG_SWD_10 J301
 U 1 1 6000BCF1
@@ -561,7 +561,6 @@ NoConn ~ 4500 2850
 NoConn ~ 4500 3150
 NoConn ~ 4500 3350
 NoConn ~ 4500 3450
-NoConn ~ 4500 3650
 NoConn ~ 4500 3750
 NoConn ~ 4500 4250
 NoConn ~ 4500 4650
@@ -615,4 +614,5 @@ NoConn ~ 2500 6250
 NoConn ~ 2500 6350
 NoConn ~ 2500 6450
 NoConn ~ 2500 6550
+NoConn ~ 4500 3550
 $EndSCHEMATC
