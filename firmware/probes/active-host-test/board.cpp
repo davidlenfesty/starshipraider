@@ -113,7 +113,8 @@ Drivers::Pin probe_vbus_nen;
 void pwr_init() {
     // TODO is this doing what I want? I.e. leaving uninitialized until pwr_init is called
     probe_pwr_en = Drivers::Pin(GPIOB, GPIO_PIN_5, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, GPIO_PIN_RESET);
-    probe_vbus_nen = Drivers::Pin(GPIOB, GPIO_PIN_6, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, GPIO_PIN_SET);
+    //probe_vbus_nen = Drivers::Pin(GPIOB, GPIO_PIN_6, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, GPIO_PIN_SET);
+    probe_vbus_nen = Drivers::Pin(GPIOB, GPIO_PIN_6, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, GPIO_PIN_RESET);
 }
 
 void pwr_write_cb(uint8_t channel, uint8_t* data) {
@@ -121,9 +122,9 @@ void pwr_write_cb(uint8_t channel, uint8_t* data) {
     probe_vbus_nen.write(!((bool)*data & 0x02));
 }
 
-void pwr_toggle() {
-    probe_pwr_en.toggle();
-    probe_vbus_nen.toggle();
+void pwr_enable(bool en) {
+    probe_pwr_en.write(en);
+    probe_vbus_nen.write(en);
 }
 
 } // namespace Board

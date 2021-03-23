@@ -1,8 +1,10 @@
 #ifndef BOARD_H
 #define BOARD_H
 
+#include <stm32f1xx_hal.h>
 #include <stdint.h>
 
+extern I2C_HandleTypeDef i2c_fusb;
 namespace Board {
 
 /// @brief Sets up clocks globally.
@@ -29,7 +31,7 @@ void pwr_init();
 /// @brief Handles writes to power management register.
 void pwr_write_cb(uint8_t channel, uint8_t* data);
 
-void pwr_toggle();
+void pwr_enable(bool en);
 
 } // namespace Board
 

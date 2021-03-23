@@ -1,8 +1,9 @@
 #include "pin.h"
-#include "fusb302.h"
+#include "FUSB302.h"
 #include "board.h"
 #include "fifo.hpp"
 #include "registers.hpp"
+#include "tcpm_driver.h"
 #include "usb_pd.h"
 
 #include <stm32f1xx.h>
@@ -110,6 +111,73 @@ void SysTick_Handler(void) {
     HAL_IncTick();
 }
 
+const struct tcpc_config_t tcpc_config[1] = {
+    {&i2c_fusb, 0x44,}// &fusb302_tcpm_drv},
+};
+
+}
+
+void handle_fusb_irq() {
+    if (i2c_interrupt_flag) {
+        i2c_interrupt_flag = false;
+
+        // Read and clear interrupts
+        int irq, irqa, irqb;
+        fusb302_get_irq(0, &irq, &irqa, &irqb);
+    }
+}
+
+enum pd_state {
+    STATE_DISCONNECTED = 0,
+    STATE_CONNECTED,
+} st;
+
+void evt_connect() {
+    // TODO temp delay just for testing
+    HAL_Delay(200);
+    int cc1, cc2;
+    fusb302_tcpm_get_cc(0, &cc1, &cc2);
+    
+    if (cc1 < 2 && cc2 < 2) {
+        // false alarm
+        return;
+    }
+
+    fusb302_pd_reset(0);
+    fusb302_tcpm_set_msg_header(0, 1, 1);
+    if (cc1 > cc2) {
+        fusb302_tcpm_set_polarity(0, 0);
+    } else {
+        fusb302_tcpm_set_polarity(0, 1);
+    }
+    fusb302_tcpm_set_rx_enable(0, 1);
+    Board::pwr_enable(true);
+
+    // May need VBUS_OK to transmit any messages...
+    HAL_Delay(20);
+
+    st = STATE_CONNECTED;
+
+    uint16_t header = PD_HEADER(PD_CTRL_PING, 1, 1, 0, 0, PD_REV20, 0);
+    fusb302_tcpm_transmit(0, TCPC_TX_SOP, header, NULL);
+}
+
+void pd_state_machine() {
+    switch (st) {
+        case (STATE_DISCONNECTED):
+            // do something
+            int cc1, cc2;
+            fusb302_tcpm_get_cc(0, &cc1, &cc2);
+
+            if (cc1 >= 2 || cc2 >= 2) {
+                evt_connect();
+            }
+            break;
+        case (STATE_CONNECTED):
+            // we'll deal with this later
+
+            break;
+    }
 }
 
 int main(void) {
@@ -122,6 +190,8 @@ int main(void) {
     HAL_Delay(100);
     Board::i2c_init();
     Board::spi_init();
+
+    Board::pwr_enable(true);
 
     // LEDs
     Drivers::Pin led1(GPIOB, GPIO_PIN_7, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL);
@@ -140,145 +210,21 @@ int main(void) {
     NVIC_SetPriority(EXTI15_10_IRQn, 0);
     NVIC_EnableIRQ(EXTI15_10_IRQn);
 
-    FUSB302::FUSB302 fusb(Board::i2c_read_register, Board::i2c_write_register);
+    volatile int id = 0;
+    tcpc_read(0, 1, (int *)&id);
+    fusb302_tcpm_init(0);
+    fusb302_pd_reset(0);
+    fusb302_tcpm_set_rx_enable(0, 0);
+    fusb302_tcpm_set_cc(0, TYPEC_CC_RP);
 
-    volatile uint8_t id = fusb.get_device_id();
-
-    fusb.reset();
-    fusb.reset_pd();
-
-    HAL_Delay(20);
-    fusb.write_masks(0xFF, 0xBF, 0x00); // Enable I_TOGDONE, I_GCRCSENT, I_BC_LVL
-    fusb.set_vconn_pwr(FUSB302::VCONN_PWR_NONE);
-    fusb.set_host_current(FUSB302::HOST_CURRENT_DEFAULT_500mA);
-    #ifdef HOST
-    fusb.set_toggle(FUSB302::toggle_modes::MODE_SRC, true, true);
-    fusb.set_auto_crc(true, FUSB302::ROLE_SRC, FUSB302::ROLE_SRC, FUSB302::REV_2);
-    #endif
-    #ifdef PROBE
-    fusb.set_toggle(FUSB302::toggle_modes::MODE_SNK, true,  true);
-    fusb.set_auto_crc(true, FUSB302::ROLE_SNK, FUSB302::ROLE_SNK, FUSB302::REV_2);
-    #endif
-    fusb.enable_interrupts(true);
-    fusb.power_enable(0x0F);
+    // clear and deal with interrupts to start
+    i2c_interrupt_flag = true;
+    handle_fusb_irq();
 
     while (1) {
         blink_led(&led1);
+        handle_fusb_irq();
+        pd_state_machine();
 
-        // Handle SPI writes
-        // Fine to just chug through everything, should be pretty quick to deal with.
-        while (!write_fifo.is_empty()) {
-            std::tuple<uint8_t, uint8_t> write;
-            if (write_fifo.pop(&write)) {
-                // ew
-                reg.handle_write(std::get<0>(write), std::get<1>(write));
-            }
-        }
-
-        // TODO I think this should be split up a bit more and made more stateful to improve
-        // responsiveness, leaving it as-is for now just for bring-up
-        if (i2c_interrupt_flag) {
-            uint8_t flags[3];
-            // Make sure BC_LVL is cleared via reading
-            // TODO check error messages
-            FUSB302::error rc = fusb.get_interrupt(&flags[0]);
-            rc = fusb.get_interrupt_a(&flags[1]);
-            rc = fusb.get_interrupt_b(&flags[2]);
-            // TODO Do I need to clear these flags? Not sure if R/C means it clears on read or that
-            //      we are only able to read and clear.
-
-            if (flags[1] & 0x40) {
-                // I_TOGDONE, we have a new device attached
-
-                // TMP enable transmitter etc.
-                // TODO put this into driver
-                uint8_t status;
-                fusb._read_reg(FUSB302::REG_STATUS_1_A, 1, &status);
-                uint8_t switches_1 = 0;
-                fusb._read_reg(0x03, 1, &switches_1);
-                status = (status >> 3) & 0x07;
-
-                // 0b001: SRC CC1
-                // 0b010: SRC CC2
-                if (status == 0b001) {
-                    fusb.enable_tx_driver(true, false);
-                    fusb.set_measure(true, false);
-                } else if (status == 0b010) {
-                    fusb.enable_tx_driver(false, true);
-                    fusb.set_measure(false, true);
-                }
-                HAL_Delay(100);
-                // Send Get_Manufacturer_Info
-
-                fusb._read_reg(0x03, 1, &switches_1);
-
-                //  Build headers
-                #ifdef HOST
-                uint8_t message_id = 0; // TODO make static and apply to messages properly
-                // num data objects is reserved for extended (and not chunked) messages)
-                //PD::MessageHeader header(true, 0, message_id, true, PD::REV_3_0, true, PD::Get_Manufacturer_Info);
-                //PD::ExtendedMessageHeader extended_header(false, 0, false, 2);
-
-                PD::MessageHeader header(false, 0, message_id, true, PD::REV_3_0, true, PD::Ping);
-
-                // Header + Extended Header + GMIDB
-                uint16_t buf[3];
-                buf[0] = header.serialize();
-                //buf[1] = extended_header.serialize();
-                //buf[2] = 0x0000; // Get info for Port/cable plug, and second byte is reserved
-
-                fusb.pd_send_message(FUSB302::SOP_1, (uint8_t*)buf, 2);
-
-                led2.clear();
-                #endif // HOST
-            } else if (flags[2] & 0x01) {
-                // I_GCRCSENT, we've received a valid message
-                uint8_t message_buf[30];
-                FUSB302::sop_types sop_type;
-                fusb.pd_read_message(message_buf, sizeof(message_buf), &sop_type);
-
-                #ifdef HOST
-                // Only care about messages meant for us.
-                if (sop_type == FUSB302::SOP_1) {
-                    PD::MessageHeader header(message_buf);
-
-                    if (header.extended && header.message_type == PD::Manufacturer_Info) {
-                        led2.set();
-                    }
-                }
-                #endif // HOST
-
-                #ifdef PROBE
-                if (sop_type == FUSB302::SOP_1) {
-                    PD::MessageHeader header(message_buf);
-
-                    led2.set();
-
-                    // Return Manufacturer_Info message
-                    if (header.extended && header.message_type == PD::Get_Manufacturer_Info) {
-                        PD::MessageHeader out_header(true, 0, 0, false, PD::REV_3_0, false, PD::Manufacturer_Info);
-                        PD::ExtendedMessageHeader extended_header(false, 0, false, 4 + sizeof("AKL"));
-
-                        *((uint16_t*)&message_buf[0]) = out_header.serialize();
-                        *((uint16_t*)&message_buf[2]) = extended_header.serialize();
-                        strcpy((char*)&message_buf[8], "AKL");
-
-                        fusb.pd_send_message(FUSB302::SOP_1, (uint8_t*) message_buf, 8 + sizeof("AKL"));
-                    }
-                }
-
-                #endif // PROBE
-            }
-
-            i2c_interrupt_flag = false;
-        }
-
-        uint8_t flags;
-        fusb._read_reg(FUSB302::REG_STATUS_1, 1, &flags);
-
-        if (flags & 0x40) {
-            led2.toggle();
-            HAL_Delay(100);
-        }
     }
 }
